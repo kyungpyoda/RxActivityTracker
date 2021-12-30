@@ -40,7 +40,7 @@ final class MainReactor: Reactor {
     
     let initialState: State
     
-    let isLoading = ActivityTracker(minDelayTime: 1)
+    let isLoading = ActivityTracker()
     
     private let errorSubject: PublishSubject<Error> = .init()
     var errorObservable: Observable<Error> { errorSubject.asObservable() }
@@ -60,7 +60,7 @@ final class MainReactor: Reactor {
         case .incrementNumber:
             return incrementNumberTask(fromNumber: currentState.number)
                 .map { .setNumber(to: $0) }
-                .trackActivity(isLoading)
+                .trackActivity(isLoading, minimumDelay: 1)
                 .catch { [weak self] error in
                     self?.errorSubject.onNext(error)
                     return .empty()
@@ -70,7 +70,7 @@ final class MainReactor: Reactor {
         case .changeColor:
             return makeColorTask()
                 .map { .setColor(to: $0) }
-                .trackActivity(isLoading)
+                .trackActivity(isLoading, minimumDelay: 1)
                 .catch { [weak self] error in
                     self?.errorSubject.onNext(error)
                     return .empty()
