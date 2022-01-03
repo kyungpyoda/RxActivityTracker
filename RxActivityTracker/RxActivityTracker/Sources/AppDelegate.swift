@@ -20,8 +20,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.makeKeyAndVisible()
         
-        let mainVC = MainVC(reactor: .init())
-        window?.rootViewController = mainVC
+        let mainVC = MainVC(reactor: .init(someService: SomeService()))
+        let navi = UINavigationController(rootViewController: mainVC)
+        window?.rootViewController = navi
         
         return true
     }

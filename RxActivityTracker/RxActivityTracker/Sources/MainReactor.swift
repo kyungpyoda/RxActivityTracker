@@ -19,16 +19,43 @@ extension TempError: LocalizedError {
     }
 }
 
+final class SomeService {
+    private let msgSubject: BehaviorSubject<String?> = .init(value: nil)
+    
+    func getMessageTask() -> Observable<String> {
+        makeMessage()
+        return msgSubject.asObservable()
+            .observe(on: MainScheduler.asyncInstance)
+            .compactMap { $0 }
+            .take(1) // take(1) 꼭 붙여야함!!! 안붙이면 onCompleted() 방출안됨!
+            .do(onNext: { [weak self] _ in
+                self?.clearMessageStream()
+            })
+    }
+    
+    private func makeMessage() {
+        DispatchQueue.global().asyncAfter(deadline: .now() + Double.random(in: 0...1)) { [weak self] in
+            self?.msgSubject.onNext("Hello!\n(Random Code: \(Int.random(in: 0...9)))")
+        }
+    }
+    
+    private func clearMessageStream() {
+        msgSubject.onNext(nil)
+    }
+}
+
 final class MainReactor: Reactor {
     
     enum Action {
         case incrementNumber
         case changeColor
+        case getMessage
     }
     
     enum Mutation {
         case setNumber(to: Int)
         case setColor(to: RGBSet)
+        case setMessage(to: String)
     }
     
     typealias RGBSet = (Float, Float, Float)
@@ -36,6 +63,7 @@ final class MainReactor: Reactor {
     struct State {
         @Pulse var number: Int
         @Pulse var color: RGBSet
+        @Pulse var message: String?
     }
     
     let initialState: State
@@ -45,11 +73,14 @@ final class MainReactor: Reactor {
     private let errorSubject: PublishSubject<Error> = .init()
     var errorObservable: Observable<Error> { errorSubject.asObservable() }
     
-    init() {
+    private let someService: SomeService
+    
+    init(someService: SomeService) {
         self.initialState = State(
             number: 0,
             color: (0.5, 0.5, 0.5)
         )
+        self.someService = someService
     }
     deinit {
         print(type(of: self), "Deinit")
@@ -65,17 +96,20 @@ final class MainReactor: Reactor {
                     self?.errorSubject.onNext(error)
                     return .empty()
                 }
-                .debug()
             
         case .changeColor:
             return makeColorTask()
                 .map { .setColor(to: $0) }
-                .trackActivity(isLoading, minimumDelay: 1)
+                .trackActivity(isLoading)
                 .catch { [weak self] error in
                     self?.errorSubject.onNext(error)
                     return .empty()
                 }
-                .debug()
+            
+        case .getMessage:
+            return someService.getMessageTask()
+                .map { .setMessage(to: $0) }
+                .trackActivity(isLoading)
         }
     }
     
@@ -88,6 +122,9 @@ final class MainReactor: Reactor {
             
         case .setColor(let newColor):
             newState.color = newColor
+            
+        case .setMessage(let newMessage):
+            newState.message = newMessage
         }
         
         return newState

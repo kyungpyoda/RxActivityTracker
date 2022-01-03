@@ -30,6 +30,7 @@ final class MainVC: UIViewController {
         $0.font = .preferredFont(forTextStyle: .largeTitle)
         $0.textAlignment = .center
     }
+    private let getMessageButton: UIButton = .init(type: .detailDisclosure)
     
     init(reactor: MainReactor) {
         super.init(nibName: nil, bundle: nil)
@@ -49,6 +50,8 @@ final class MainVC: UIViewController {
     
     private func setUp() {
         view.backgroundColor = .systemBackground
+        
+        navigationItem.rightBarButtonItem = .init(customView: getMessageButton)
         
         let topView = UIView().then {
             $0.backgroundColor = .systemGray5
@@ -130,6 +133,11 @@ extension MainVC: View {
             .map { Reactor.Action.changeColor }
             .bind(to: reactor.action)
             .disposed(by: disposeBag)
+        
+        getMessageButton.rx.tap
+            .map { Reactor.Action.getMessage }
+            .bind(to: reactor.action)
+            .disposed(by: disposeBag)
     }
     
     private func bindState(reactor: MainReactor) {
@@ -145,6 +153,17 @@ extension MainVC: View {
             .observe(on: MainScheduler.instance)
             .map { UIColor(red: CGFloat($0.0), green: CGFloat($0.1), blue: CGFloat($0.2), alpha: 1) }
             .bind(to: randomColorView.rx.backgroundColor)
+            .disposed(by: disposeBag)
+        
+        reactor
+            .pulse(\.$message)
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] in
+                let alert = UIAlertController(title: $0, message: nil, preferredStyle: .alert)
+                let closeAction = UIAlertAction(title: "Close", style: .default, handler: nil)
+                alert.addAction(closeAction)
+                self?.present(alert, animated: true, completion: nil)
+            })
             .disposed(by: disposeBag)
         
         reactor
